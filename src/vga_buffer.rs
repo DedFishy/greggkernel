@@ -2,7 +2,9 @@ use core::fmt;
 use lazy_static::lazy_static;
 use spin::Mutex;
 
+// This is a permanent instance of the writer. It must be lazy static so it can be mutable and also permanent. It must also be a spin mutex for the same reason: mutability
 lazy_static! {
+    // Instantiates the global writer instance as a mutex of writer. Note that 0xb8000 is the memory address of the VGA text buffer
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
         column_position: 0,
         color_code: ColorCode::new(Color::Yellow, Color::Black),
@@ -10,10 +12,12 @@ lazy_static! {
     });
 }
 
+// Describes the BGA text buffer
 struct Buffer {
     chars: [[volatile::Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
+// Describes the color codes on the VGA text buffer
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -36,17 +40,17 @@ pub enum Color {
     White = 15,
 }
 
-
+// Describes a possible color code on the VGA text buffer
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 struct ColorCode(u8);
-
 impl ColorCode {
     fn new(foreground: Color, background: Color) -> ColorCode {
         ColorCode((background as u8) << 4 | (foreground as u8))
     }
 }
 
+// Describes a possible character on the VGA text buffer
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 struct ScreenChar {
@@ -54,15 +58,16 @@ struct ScreenChar {
     color_code: ColorCode,
 }
 
+// The size of the VGA buffer (typically)
 const BUFFER_HEIGHT: usize = 25;
 const BUFFER_WIDTH: usize = 80;
 
+// A writer that outputs to the VGA buffer
 pub struct Writer {
     column_position: usize,
     color_code: ColorCode,
     buffer: &'static mut Buffer,
 }
-
 impl Writer {
     pub fn write_string(&mut self, s: &str) {
         for byte in s.bytes() {
@@ -119,6 +124,7 @@ impl Writer {
     }
 }
 
+// An implementation of the "write" trait that allows the writer to be written to like a buffer (because it wraps a buffer)
 impl fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_string(s);
@@ -127,6 +133,7 @@ impl fmt::Write for Writer {
 }
 
 
+// Copies of the strange print/println macros that use our VGA buffer stuff
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)));
